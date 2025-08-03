@@ -5,54 +5,120 @@ on:
     branches:
       - main
 
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: 1.5.0
+
 jobs:
-  build-and-deploy:
+  deploy-infrastructure:
+    name: Deploy Infrastructure
     runs-on: ubuntu-latest
-
-    env:
-      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-      AWS_DEFAULT_OUTPUT: ${{ secrets.AWS_DEFAULT_OUTPUT }}
-
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: ${{ env.AWS_REGION }}
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_TOKEN }}
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Build and push Docker images
-        run: |
-          docker build -t yourdockeruser/order-service:latest ./order-service
-          docker push yourdockeruser/order-service:latest
-          # Repite para otros microservicios...
+    - name: Terraform Init
+      id: init
+      run: |
+        cd terraform
+        terraform init
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+    - name: Terraform Plan
+      id: plan
+      run: |
+        cd terraform
+        terraform plan -input=false -out=tfplan
+      continue-on-error: true
 
-      # Agrega aquí pasos para despliegue en AWS (ECS, EC2, etc.)
-      - name: Deploy to AWS EC2 via SSH
-        env:
-          EC2_HOST: ${{ secrets.EC2_PUBLIC_IP }}
-          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-        run: |
-          echo "$SSH_KEY" > key.pem
-          chmod 600 key.pem
-          scp -o StrictHostKeyChecking=no -i key.pem docker-compose.yml ubuntu@$EC2_HOST:/home/ubuntu/
-          ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@$EC2_HOST "cd /home/ubuntu && docker-compose pull && docker-compose up -d"
+    - name: Terraform Plan Status
+      if: steps.plan.outcome == 'failure'
+      run: exit 1
+
+    - name: Terraform Apply
+      id: apply
+      run: |
+        cd terraform
+        terraform apply -auto-approve tfplan
+      
+    - name: Get EC2 Public IP
+      id: ip
+      run: |
+        cd terraform
+        echo "EC2_PUBLIC_IP=$(terraform output -raw instance_public_ip)" >> $GITHUB_OUTPUT
+        echo "EC2_PUBLIC_DNS=$(terraform output -raw instance_public_dns)" >> $GITHUB_OUTPUT
+
+    - name: Save Terraform Outputs
+      run: |
+        mkdir -p tf_outputs
+        cd terraform
+        terraform output -json > ../tf_outputs/tf_outputs.json
+      
+    - name: Upload Terraform Outputs
+      uses: actions/upload-artifact@v3
+      with:
+        name: terraform-outputs
+        path: tf_outputs/
+        retention-days: 1
+
+  deploy-application:
+    name: Deploy Application
+    needs: deploy-infrastructure
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download Terraform Outputs
+      uses: actions/download-artifact@v3
+      with:
+        name: terraform-outputs
+        path: tf_outputs/
+    
+    - name: Read Terraform Outputs
+      id: tf_outputs
+      run: |
+        EC2_PUBLIC_IP=$(jq -r '.instance_public_ip.value' tf_outputs/tf_outputs.json)
+        echo "EC2_PUBLIC_IP=$EC2_PUBLIC_IP" >> $GITHUB_ENV
+        echo "EC2_PUBLIC_DNS=$(jq -r '.instance_public_dns.value' tf_outputs/tf_outputs.json)" >> $GITHUB_ENV
+    
+    - name: Copy Files to EC2
+      env:
+        EC2_PEM: ${{ secrets.EC2_PEM_KEY }}
+      run: |
+        # Guardar la clave PEM
+        echo "$EC2_PEM" > pc1.pem
+        chmod 600 pc1.pem
+        
+        # Copiar archivos necesarios
+        scp -o StrictHostKeyChecking=no -i pc1.pem \
+          docker-compose.yml \
+          .env \
+          ubuntu@${{ env.EC2_PUBLIC_IP }}:/home/ubuntu/
+        
+        # Ejecutar comandos en el servidor
+        ssh -o StrictHostKeyChecking=no -i pc1.pem ubuntu@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+          cd /home/ubuntu
+          # Asegurarse de que Docker esté en ejecución
+          sudo systemctl start docker
+          # Detener y eliminar contenedores existentes
+          docker-compose down || true
+          # Limpiar imágenes sin usar
+          docker system prune -af
+          # Iniciar los contenedores
+          docker-compose up -d
+        EOF
+        
+        # Limpiar la clave PEM
+        rm -f pc1.pem

@@ -20,15 +20,87 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
-#env file
+
+### Environment ###
+# Environment variables
 .env
-#Redis data folder
+
+### Data Folders ###
+# Redis data folder
 redis_data/
-#Postgres data folder
+# Postgres data folder
 postgres_data/
-#Mongo data folder
+# Mongo data folder
 mongo_data/
-#Node modules folder
+
+### Node.js ###
+# Node modules folder
 node_modules/
-#Log files
+
+### Logs ###
+# Log files
 *.log
+
+### Security ###
+# PEM files
+*.pem
+# Terraform state files
+**/.terraform/*
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.*
+**/crash.log
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
+**/.terraformrc
+**/terraform.rc
+
+### IDE ###
+# IntelliJ
+.idea/
+*.iml
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+### System Files ###
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+### Project Specific ###
+# Local Terraform variables
+*.tfvars
+*.tfvars.json
+
+# Ignore .tfstate files but keep the backup files
+*.tfstate
+*.tfstate.*
+
+# Ignore crash log files
+crash.log
+crash.*.log
+
+# Ignore override files as they are usually used to override resources locally
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# Ignore lock files
+.terraform.lock.hcl
