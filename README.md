@@ -222,38 +222,42 @@ proyecto-pedidos-distribuido/
 
 You can use the following sample requests in Postman to test your deployed microservices. Replace `<EC2_PUBLIC_IP>` with the public IP of your EC2 instance.
 
-### Example: Order Service (port 3000)
+### Create a new order (API Gateway via NGINX)
+```
+POST http://<EC2_PUBLIC_IP>/create-order
+Body (JSON):
+{
+  "order_id": "123",
+  "items": [
+    { "name": "Mouse", "price": 10, "qty": 2 },
+    { "name": "Teclado", "price": 15, "qty": 1 }
+  ]
+}
+```
 
-**Get all orders**
+### Get all orders (direct to order-service, for local/dev)
 ```
 GET http://<EC2_PUBLIC_IP>:3000/api/orders
 ```
 
-**Create a new order**
+### Get subtotal (subtotal-service)
 ```
-POST http://<EC2_PUBLIC_IP>:3000/api/orders
-Body (JSON):
-{
-  "item": "product_name",
-  "quantity": 2
-}
+GET http://<EC2_PUBLIC_IP>:3002/api/subtotal
 ```
 
-### Example: User Service (port 80)
-
-**Get all users**
+### Get total (total-service)
 ```
-GET http://<EC2_PUBLIC_IP>/api/users
+GET http://<EC2_PUBLIC_IP>:3001/api/total
 ```
 
-**Create a new user**
+### Get order history (order-history-service)
 ```
-POST http://<EC2_PUBLIC_IP>/api/users
-Body (JSON):
-{
-  "name": "John Doe",
-  "email": "john@example.com"
-}
+GET http://<EC2_PUBLIC_IP>:3003/api/history
 ```
 
-> **Note:** Make sure your `docker-compose.yml` exposes the correct ports and endpoints for each service.
+### Get notifications (notification-service)
+```
+GET http://<EC2_PUBLIC_IP>:3004/api/notification
+```
+
+> **Note:** All requests through port 80 go via NGINX. For direct service testing, use the mapped ports as shown above. Adjust endpoints if your microservices use different routes.
