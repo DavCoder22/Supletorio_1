@@ -10,24 +10,30 @@ client.collectDefaultMetrics({ register });
 
 // Procesa mensajes de RabbitMQ
 async function start() {
-  const conn = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://rabbitmq');
-  const ch = await conn.createChannel();
-  await ch.assertQueue(TOTAL_READY_QUEUE, { durable: true });
+  try {
+    const conn = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://rabbitmq');
+    const ch = await conn.createChannel();
+    await ch.assertQueue(TOTAL_READY_QUEUE, { durable: true });
 
-  ch.consume(TOTAL_READY_QUEUE, async (msg) => {
-    if (msg !== null) {
-      try {
-        const data = JSON.parse(msg.content.toString());
-        // Simula el envío de notificación (puedes reemplazar por email, SMS, etc.)
-        console.log(
-          `Notification sent for order ${data.order_id}: Total = $${data.total}`
-        );
-        ch.ack(msg);
-      } catch (e) {
-        ch.nack(msg, false, false);
+    ch.consume(TOTAL_READY_QUEUE, async (msg) => {
+      if (msg !== null) {
+        try {
+          const data = JSON.parse(msg.content.toString());
+          // Simula el envío de notificación (puedes reemplazar por email, SMS, etc.)
+          console.log(
+            `Notification sent for order ${data.order_id}: Total = $${data.total}`
+          );
+          ch.ack(msg);
+        } catch (e) {
+          console.error('Error processing message:', e);
+          ch.nack(msg, false, false);
+        }
       }
-    }
-  });
+    });
+  } catch (err) {
+    console.error('RabbitMQ connection error:', err);
+    process.exit(1);
+  }
 }
 
 // /metrics endpoint
@@ -43,4 +49,11 @@ app.listen(PORT, () => {
     console.error('RabbitMQ connection error:', err);
     process.exit(1);
   });
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
 });

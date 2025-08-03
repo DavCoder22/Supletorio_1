@@ -13,20 +13,26 @@ client.collectDefaultMetrics({ register });
 
 // POST /create-order
 app.post('/create-order', async (req, res) => {
-  const order = req.body;
-  if (!order || !order.order_id || !order.items) {
-    return res.status(400).json({ error: 'Invalid order format' });
-  }
   try {
-    const conn = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://rabbitmq');
-    const ch = await conn.createChannel();
-    await ch.assertQueue(ORDER_CREATED_QUEUE, { durable: true });
-    ch.sendToQueue(ORDER_CREATED_QUEUE, Buffer.from(JSON.stringify(order)), { persistent: true });
-    await ch.close();
-    await conn.close();
-    res.status(201).json({ status: 'Order created', order_id: order.order_id });
+    const order = req.body;
+    if (!order || !order.order_id || !order.items) {
+      return res.status(400).json({ error: 'Invalid order format' });
+    }
+    try {
+      const conn = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://rabbitmq');
+      const ch = await conn.createChannel();
+      await ch.assertQueue(ORDER_CREATED_QUEUE, { durable: true });
+      ch.sendToQueue(ORDER_CREATED_QUEUE, Buffer.from(JSON.stringify(order)), { persistent: true });
+      await ch.close();
+      await conn.close();
+      res.status(201).json({ status: 'Order created', order_id: order.order_id });
+    } catch (err) {
+      console.error('RabbitMQ error:', err);
+      res.status(500).json({ error: 'Failed to publish order' });
+    }
   } catch (err) {
-    res.status(500).json({ error: 'Failed to publish order' });
+    console.error('Unexpected error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -39,4 +45,12 @@ app.get('/metrics', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`order-service listening on port ${PORT}`);
+});
+
+// Manejo global de errores no atrapados
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
 });

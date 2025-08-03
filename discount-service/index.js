@@ -14,33 +14,39 @@ client.collectDefaultMetrics({ register });
 
 // Procesa mensajes de RabbitMQ
 async function start() {
-  const conn = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://rabbitmq');
-  const ch = await conn.createChannel();
-  await ch.assertQueue(SUBTOTAL_READY_QUEUE, { durable: true });
-  await ch.assertQueue(DISCOUNT_READY_QUEUE, { durable: true });
+  try {
+    const conn = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://rabbitmq');
+    const ch = await conn.createChannel();
+    await ch.assertQueue(SUBTOTAL_READY_QUEUE, { durable: true });
+    await ch.assertQueue(DISCOUNT_READY_QUEUE, { durable: true });
 
-  ch.consume(SUBTOTAL_READY_QUEUE, async (msg) => {
-    if (msg !== null) {
-      try {
-        const data = JSON.parse(msg.content.toString());
-        const subtotal = data.subtotal || 0;
-        let discount = 0;
-        if (subtotal > DISCOUNT_THRESHOLD) {
-          discount = subtotal * DISCOUNT_RATE;
+    ch.consume(SUBTOTAL_READY_QUEUE, async (msg) => {
+      if (msg !== null) {
+        try {
+          const data = JSON.parse(msg.content.toString());
+          const subtotal = data.subtotal || 0;
+          let discount = 0;
+          if (subtotal > DISCOUNT_THRESHOLD) {
+            discount = subtotal * DISCOUNT_RATE;
+          }
+          const payload = {
+            order_id: data.order_id,
+            items: data.items,
+            subtotal,
+            discount: Number(discount.toFixed(2))
+          };
+          ch.sendToQueue(DISCOUNT_READY_QUEUE, Buffer.from(JSON.stringify(payload)), { persistent: true });
+          ch.ack(msg);
+        } catch (e) {
+          console.error('Error processing message:', e);
+          ch.nack(msg, false, false);
         }
-        const payload = {
-          order_id: data.order_id,
-          items: data.items,
-          subtotal,
-          discount: Number(discount.toFixed(2))
-        };
-        ch.sendToQueue(DISCOUNT_READY_QUEUE, Buffer.from(JSON.stringify(payload)), { persistent: true });
-        ch.ack(msg);
-      } catch (e) {
-        ch.nack(msg, false, false);
       }
-    }
-  });
+    });
+  } catch (err) {
+    console.error('RabbitMQ connection error:', err);
+    process.exit(1);
+  }
 }
 
 // /metrics endpoint
@@ -56,4 +62,11 @@ app.listen(PORT, () => {
     console.error('RabbitMQ connection error:', err);
     process.exit(1);
   });
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
 });
