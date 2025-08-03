@@ -20,3 +20,15 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+#env file
+.env
+#Redis data folder
+redis_data/
+#Postgres data folder
+postgres_data/
+#Mongo data folder
+mongo_data/
+#Node modules folder
+node_modules/
+#Log files
+*.log
