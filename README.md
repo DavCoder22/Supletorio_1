@@ -215,3 +215,45 @@ proyecto-pedidos-distribuido/
 - Kafka was replaced by RabbitMQ.
 - Amazon SNS/SQS are integrable but were not used in this version to keep the focus modular and fast.
 - Images are available on Docker Hub under the user `davcode22`.
+
+---
+
+## Postman Test Requests
+
+You can use the following sample requests in Postman to test your deployed microservices. Replace `<EC2_PUBLIC_IP>` with the public IP of your EC2 instance.
+
+### Example: Order Service (port 3000)
+
+**Get all orders**
+```
+GET http://<EC2_PUBLIC_IP>:3000/api/orders
+```
+
+**Create a new order**
+```
+POST http://<EC2_PUBLIC_IP>:3000/api/orders
+Body (JSON):
+{
+  "item": "product_name",
+  "quantity": 2
+}
+```
+
+### Example: User Service (port 80)
+
+**Get all users**
+```
+GET http://<EC2_PUBLIC_IP>/api/users
+```
+
+**Create a new user**
+```
+POST http://<EC2_PUBLIC_IP>/api/users
+Body (JSON):
+{
+  "name": "John Doe",
+  "email": "john@example.com"
+}
+```
+
+> **Note:** Make sure your `docker-compose.yml` exposes the correct ports and endpoints for each service.
