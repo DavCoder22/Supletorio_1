@@ -47,4 +47,12 @@ jobs:
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       # Agrega aquí pasos para despliegue en AWS (ECS, EC2, etc.)
-      # - name: Deploy to AWS ...
+      - name: Deploy to AWS EC2 via SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_PUBLIC_IP }}
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          echo "$SSH_KEY" > key.pem
+          chmod 600 key.pem
+          scp -o StrictHostKeyChecking=no -i key.pem docker-compose.yml ubuntu@$EC2_HOST:/home/ubuntu/
+          ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@$EC2_HOST "cd /home/ubuntu && docker-compose pull && docker-compose up -d"
