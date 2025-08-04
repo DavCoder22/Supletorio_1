@@ -1,114 +1,189 @@
-# AWS Credentials
-variable "aws_access_key" {
-  description = "AWS access key"
-  type        = string
-  sensitive   = true
-}
-
-variable "aws_secret_key" {
-  description = "AWS secret key"
-  type        = string
-  sensitive   = true
-}
-
-variable "aws_session_token" {
-  description = "AWS session token"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-# Database Credentials
-variable "redis_user" {
-  description = "Redis username"
-  type        = string
-  sensitive   = true
-  default     = "redis1"
-}
-
-variable "redis_password" {
-  description = "Redis password"
-  type        = string
-  sensitive   = true
-  default     = "Sebasalejandro22"
-}
-
-variable "postgres_user" {
-  description = "PostgreSQL username"
-  type        = string
-  sensitive   = true
-  default     = "postgres1"
-}
-
-variable "postgres_password" {
-  description = "PostgreSQL password"
-  type        = string
-  sensitive   = true
-  default     = "Sebasalejandro22"
-}
-
-variable "postgres_db" {
-  description = "PostgreSQL database name"
-  type        = string
-  default     = "appdb"
-}
-
-variable "mongo_user" {
-  description = "MongoDB username"
-  type        = string
-  sensitive   = true
-  default     = "mongo1"
-}
-
-variable "mongo_password" {
-  description = "MongoDB password"
-  type        = string
-  sensitive   = true
-  default     = "Sebasalejandro22"
-}
-
-# Region Configuration
-variable "primary_region" {
-  description = "Primary AWS region"
+# AWS Configuration
+variable "aws_region" {
+  description = "AWS region to launch servers"
   type        = string
   default     = "us-east-1"
 }
 
-variable "secondary_region" {
-  description = "Secondary AWS region for failover"
-  type        = string
-  default     = "us-west-2"
+# Network Configuration
+variable "public_subnet_cidrs" {
+  description = "List of public subnet CIDR blocks"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
-# Instance Configuration
+variable "azs" {
+  description = "List of availability zones"
+  type        = list(string)
+  default     = ["a", "b"]
+}
+
+# EC2 Configuration
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string
-  default     = "t3.micro"
+  default     = "t3.medium"
 }
 
-variable "key_name" {
-  description = "Name of the key pair to use for EC2 instances"
+variable "public_key_path" {
+  description = "Path to the public key"
   type        = string
-  default     = "pc1"
+  default     = "C:\\Users\\david\\pc1.pem"  # Ruta exacta al archivo de clave
 }
 
-# AMI IDs (Debes actualizar estos valores según las regiones)
-variable "ami_ids" {
-  description = "Map of AMI IDs for different regions"
-  type        = map(string)
-  default = {
-    us-east-1 = "ami-08a6efd148b1f7504"  # Actualiza con AMI correcta para us-east-1
-    us-west-2 = "ami-0c55b159cbfafe1f0"  # Actualiza con AMI correcta para us-west-2
-  }
+variable "ssh_key_path" {
+  description = "Path to the private SSH key"
+  type        = string
+  default     = "C:\\Users\\david\\pc1.pem"  # Ruta exacta al archivo de clave
 }
 
-# VPC Configuration
-variable "vpc_cidr_blocks" {
-  description = "Map of VPC CIDR blocks for different regions"
-  type        = map(string)
-  default = {
-    us-east-1 = "10.0.0.0/16"
-    us-west-2 = "10.1.0.0/16"
-  }
+# Auto Scaling Configuration
+variable "desired_capacity" {
+  description = "Desired number of instances in the Auto Scaling Group"
+  type        = number
+  default     = 2
+}
+
+variable "min_size" {
+  description = "Minimum number of instances in the Auto Scaling Group"
+  type        = number
+  default     = 1
+}
+
+variable "max_size" {
+  description = "Maximum number of instances in the Auto Scaling Group"
+  type        = number
+  default     = 4
+}
+
+# Database Configuration
+variable "db_username" {
+  description = "Database administrator username"
+  type        = string
+  default     = "dbadmin"
+  sensitive   = true
+}
+
+variable "db_password" {
+  description = "Database administrator password"
+  type        = string
+  default     = "default_db_password"
+  sensitive   = true
+}
+
+variable "db_name" {
+  description = "Default database name"
+  type        = string
+  default     = "orderdb"
+}
+
+# MongoDB Configuration
+variable "mongo_username" {
+  description = "MongoDB username"
+  type        = string
+  default     = "mongoadmin"
+  sensitive   = true
+}
+
+variable "mongo_password" {
+  description = "Password for MongoDB"
+  type        = string
+  default     = "default_mongo_password"
+  sensitive   = true
+}
+
+variable "mongo_uri" {
+  description = "MongoDB connection string"
+  type        = string
+  default     = "mongodb://localhost:27017/"
+}
+
+# RabbitMQ Configuration
+variable "rabbitmq_user" {
+  description = "RabbitMQ username"
+  type        = string
+  default     = "rabbit"
+}
+
+variable "rabbitmq_pass" {
+  description = "RabbitMQ password"
+  type        = string
+  default     = "rabbitpass"
+  sensitive   = true
+}
+
+# Redis Configuration
+variable "redis_user" {
+  description = "Redis username"
+  type        = string
+  default     = "default"
+  sensitive   = true
+}
+
+variable "redis_pass" {
+  description = "Redis password"
+  type        = string
+  default     = "default_redis_password"
+  sensitive   = true
+}
+
+# Docker Configuration
+variable "docker_compose_version" {
+  description = "Docker Compose version to install"
+  type        = string
+  default     = "v2.23.0"
+}
+
+# Security Group Configuration
+variable "allowed_ssh_cidr_blocks" {
+  description = "List of CIDR blocks allowed to SSH into the EC2 instance"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]  # WARNING: In production, restrict this to your IP
+}
+
+# Monitoring Configuration
+variable "enable_monitoring" {
+  description = "Enable monitoring services (Prometheus, cAdvisor)"
+  type        = bool
+  default     = true
+}
+
+# Tags
+variable "environment" {
+  description = "Deployment environment (e.g., dev, staging, prod)"
+  type        = string
+  default     = "dev"
+}
+
+variable "project_name" {
+  description = "Project name for resource tagging"
+  type        = string
+  default     = "order-processing-system"
+}
+
+# Application Configuration
+variable "app_port" {
+  description = "Port on which the application will run"
+  type        = number
+  default     = 8080
+}
+
+# Load Balancer Configuration
+variable "health_check_path" {
+  description = "Path for the load balancer health check"
+  type        = string
+  default     = "/health"
+}
+
+# Auto Scaling Policy Configuration
+variable "scale_up_threshold" {
+  description = "CPU utilization threshold for scaling up"
+  type        = number
+  default     = 70
+}
+
+variable "scale_down_threshold" {
+  description = "CPU utilization threshold for scaling down"
+  type        = number
+  default     = 30
 }

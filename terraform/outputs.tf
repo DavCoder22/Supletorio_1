@@ -1,62 +1,45 @@
-# Outputs para la región primaria
-output "primary_region_alb_dns" {
-  description = "DNS del ALB en la región primaria (${var.primary_region})"
-  value       = module.primary_region.alb_dns_name
+# VPC Outputs
+output "vpc_id" {
+  description = "The ID of the VPC"
+  value       = aws_vpc.main.id
 }
 
-output "primary_region_vpc_id" {
-  description = "ID de la VPC en la región primaria"
-  value       = module.primary_region.vpc_id
+# Subnet Outputs
+output "public_subnet_ids" {
+  description = "List of public subnet IDs"
+  value       = aws_subnet.public_subnets[*].id
 }
 
-output "primary_region_subnet_ids" {
-  description = "IDs de las subredes en la región primaria"
-  value       = module.primary_region.subnet_ids
+# Internet Gateway Output
+output "internet_gateway_id" {
+  description = "The ID of the Internet Gateway"
+  value       = aws_internet_gateway.igw.id
 }
 
-# Outputs para la región secundaria
-output "secondary_region_alb_dns" {
-  description = "DNS del ALB en la región secundaria (${var.secondary_region})"
-  value       = module.secondary_region.alb_dns_name
+# Route Table Output
+output "public_route_table_id" {
+  description = "The ID of the public route table"
+  value       = aws_route_table.public_rt.id
 }
 
-output "secondary_region_vpc_id" {
-  description = "ID de la VPC en la región secundaria"
-  value       = module.secondary_region.vpc_id
+# Launch Template Output
+output "launch_template_id" {
+  description = "The ID of the launch template"
+  value       = aws_launch_template.app_lt.id
 }
 
-output "secondary_region_subnet_ids" {
-  description = "IDs de las subredes en la región secundaria"
-  value       = module.secondary_region.subnet_ids
+output "launch_template_latest_version" {
+  description = "The latest version of the launch template"
+  value       = aws_launch_template.app_lt.latest_version
 }
 
-# Información general
-output "primary_region" {
-  description = "Región primaria configurada"
-  value       = var.primary_region
+# CloudWatch Alarm Outputs
+output "high_cpu_alarm_arn" {
+  description = "The ARN of the high CPU usage alarm"
+  value       = aws_cloudwatch_metric_alarm.high_cpu.arn
 }
 
-output "secondary_region" {
-  description = "Región secundaria configurada"
-  value       = var.secondary_region
-}
-
-# Instrucciones de conexión
-output "connection_instructions" {
-  description = "Instrucciones para conectarse a la aplicación"
-  value = <<EOT
-
-  ¡Despliegue en múltiples regiones completado!
-
-  Acceso a la aplicación:
-  - Región primaria (${var.primary_region}): http://${module.primary_region.alb_dns_name}
-  - Región secundaria (${var.secondary_region}): http://${module.secondary_region.alb_dns_name}
-
-  Para configurar el balanceo de carga global, configura un registro CNAME en tu DNS que apunte a:
-  ${module.primary_region.alb_dns_name}
-
-  Monitorea el estado de las regiones con los siguientes endpoints de salud:
-  - Primaria: http://${module.primary_region.alb_dns_name}/health
-  - Secundaria: http://${module.secondary_region.alb_dns_name}/health
-  EOT
+output "low_cpu_alarm_arn" {
+  description = "The ARN of the low CPU usage alarm"
+  value       = aws_cloudwatch_metric_alarm.low_cpu.arn
 }

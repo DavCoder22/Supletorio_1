@@ -4,10 +4,22 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
   TF_VERSION: 1.5.0
+  
+  # Application Configuration
+  DB_NAME: orderdb
+  NODE_ENV: production
+  
+  # Ports
+  APP_PORT: 8080
+  RABBITMQ_PORT: 5672
+  RABBITMQ_MGMT_PORT: 15672
+  PROMETHEUS_PORT: 9090
+  CADVISOR_PORT: 8080
 
 jobs:
   deploy-infrastructure:
@@ -37,6 +49,13 @@ jobs:
         cd terraform
         terraform init
 
+    - name: Generate terraform.tfvars
+      run: |
+        cd terraform
+        chmod +x load-env.sh
+        ./load-env.sh
+        cat terraform.tfvars
+        
     - name: Terraform Plan
       id: plan
       run: |
@@ -49,10 +68,10 @@ jobs:
       run: exit 1
 
     - name: Terraform Apply
-      id: apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: |
         cd terraform
-        terraform apply -auto-approve tfplan
+        terraform apply -auto-approve -input=false tfplan
       
     - name: Get EC2 Public IP
       id: ip
@@ -93,24 +112,64 @@ jobs:
         echo "EC2_PUBLIC_IP=$EC2_PUBLIC_IP" >> $GITHUB_ENV
         echo "EC2_PUBLIC_DNS=$(jq -r '.instance_public_dns.value' tf_outputs/tf_outputs.json)" >> $GITHUB_ENV
     
+    - name: Generate .env file
+      run: |
+        cat > .env <<EOL
+        # AWS Configuration
+        AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION=${{ env.AWS_REGION }}
+        
+        # Database Configuration
+        DB_USERNAME=${{ secrets.DB_USERNAME }}
+        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+        DB_NAME=${{ env.DB_NAME }}
+        
+        # MongoDB Configuration
+        MONGO_URI=mongodb://${{ secrets.MONGO_USERNAME }}:${{ secrets.MONGO_PASSWORD }}@${{ env.MONGO_ENDPOINT }}/${{ env.DB_NAME }}?retryWrites=true&w=majority
+        
+        # Redis Configuration
+        REDIS_USER=${{ secrets.REDIS_USER }}
+        REDIS_PASS=${{ secrets.REDIS_PASS }}
+        
+        # RabbitMQ Configuration
+        RABBITMQ_DEFAULT_USER=${{ secrets.RABBITMQ_USER }}
+        RABBITMQ_DEFAULT_PASS=${{ secrets.RABBITMQ_PASS }}
+        
+        # Application Configuration
+        NODE_ENV=${{ env.NODE_ENV }}
+        JWT_SECRET=${{ secrets.JWT_SECRET }}
+        ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
+        
+        # Service URLs
+        ORDER_SERVICE_URL=http://order-service:${{ env.APP_PORT }}
+        SUBTOTAL_SERVICE_URL=http://subtotal-service:${{ env.APP_PORT }}
+        DISCOUNT_SERVICE_URL=http://discount-service:${{ env.APP_PORT }}
+        TOTAL_SERVICE_URL=http://total-service:${{ env.APP_PORT }}
+        NOTIFICATION_SERVICE_URL=http://notification-service:${{ env.APP_PORT }}
+        EOL
+        
+        # Remove leading spaces from .env file
+        sed -i 's/^[ \t]*//' .env
+        
     - name: Copy Files to EC2
       env:
         EC2_PEM: ${{ secrets.EC2_PEM_KEY }}
       run: |
-        # Guardar la clave PEM
+        # Save PEM key
         echo "$EC2_PEM" > pc1.pem
         chmod 600 pc1.pem
         
-        # Copiar archivos necesarios
+        # Copy necessary files
         scp -o StrictHostKeyChecking=no -i pc1.pem \
           docker-compose.yml \
           .env \
-          ubuntu@${{ env.EC2_PUBLIC_IP }}:/home/ubuntu/
+          ec2-user@${{ env.EC2_PUBLIC_IP }}:/home/ec2-user/
         
-        # Ejecutar comandos en el servidor
-        ssh -o StrictHostKeyChecking=no -i pc1.pem ubuntu@${{ env.EC2_PUBLIC_IP }} << 'EOF'
-          cd /home/ubuntu
-          # Asegurarse de que Docker esté en ejecución
+        # Execute commands on the server
+        ssh -o StrictHostKeyChecking=no -i pc1.pem ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+          cd /home/ec2-user
+          # Ensure Docker is running
           sudo systemctl start docker
           # Detener y eliminar contenedores existentes
           docker-compose down || true
