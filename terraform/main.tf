@@ -356,12 +356,17 @@ resource "aws_instance" "mongodb" {
   key_name               = aws_key_pair.deployer.key_name
   associate_public_ip_address = true
   
+  # Ensure EIP is created first
+  depends_on = [aws_eip.mongodb_eip]
+  
+  root_block_device {
+    volume_size = 50  # 50GB root volume for database
+    volume_type = "gp2"
+  }
+
   tags = {
     Name = "mongodb-instance"
   }
-  
-  # Dependencia para asegurar que la IP elástica se cree primero
-  depends_on = [aws_eip.mongodb_eip]
   
   user_data = <<-EOF
               #!/bin/bash
@@ -379,15 +384,6 @@ resource "aws_instance" "mongodb" {
               # Create MongoDB user
               mongo admin --eval 'db.createUser({user: "${var.mongo_username}", pwd: "${var.mongo_password}", roles: ["root"]})'
               EOF
-
-  root_block_device {
-    volume_size = 50  # 50GB root volume for database
-    volume_type = "gp2"
-  }
-
-  tags = {
-    Name = "mongodb-instance"
-  }
 }
 
 # Redis instance (ElastiCache would be better for production)
