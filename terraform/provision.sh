@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Set environment variables from template with defaults
+# Configuración de variables de entorno con valores por defecto
 db_username=${db_username:-dbadmin}
 db_password=${db_password:-default_db_password}
 db_name=${db_name:-orderdb}
@@ -8,14 +8,14 @@ redis_user=${redis_user:-default}
 redis_pass=${redis_pass:-default_redis_pass}
 mongo_uri=${mongo_uri:-mongodb://localhost:27017/}
 
-# Set RabbitMQ defaults if not provided
+# Configuración de RabbitMQ
 export RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-rabbit}
 export RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-rabbitpass}
 
-# Set other required environment variables with defaults
+# Otras variables de entorno
 export NODE_ENV=production
 
-# Update the system and install required packages
+# Actualizar el sistema e instalar paquetes necesarios
 yum update -y
 yum install -y \
     curl \
@@ -26,20 +26,45 @@ yum install -y \
     jq \
     amazon-cloudwatch-agent
 
-# Install Docker
+# Instalar Docker
 yum install -y docker
 systemctl enable docker
 systemctl start docker
 
-# Install Docker Compose
+# Instalar Docker Compose
 curl -L "https://github.com/docker/compose/releases/download/v2.23.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 chmod +x /usr/local/bin/docker-compose
+ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
 
-# Create application directory
-mkdir -p /opt/order-processing
-cd /opt/order-processing
+# Instalar Node.js y npm
+curl -sL https://rpm.nodesource.com/setup_16.x | bash -
+yum install -y nodejs
 
-# Create environment file for containers
+# Clonar el repositorio
+REPO_URL="https://github.com/DavCoder22/Supletorio_1.git"
+APP_DIR="/opt/order-processing"
+mkdir -p $APP_DIR
+cd $APP_DIR
+
+# Clonar o actualizar el repositorio
+if [ -d ".git" ]; then
+    git pull origin main
+else
+    git clone $REPO_URL .
+fi
+
+# Instalar dependencias para cada microservicio
+for service in order-service total-service subtotal-service order-history-service notification-service; do
+    if [ -d "$service" ]; then
+        echo "Instalando dependencias para $service..."
+        cd $service
+        npm install || echo "Error instalando dependencias para $service"
+        cd ..
+    fi
+done
+
+# Crear archivo .env para los contenedores
+cd $APP_DIR
 cat > .env << EOL
 # Database Configuration
 POSTGRES_USER=${db_username}
@@ -47,31 +72,29 @@ POSTGRES_PASSWORD=${db_password}
 POSTGRES_DB=${db_name}
 
 # Redis Configuration
-REDIS_USER=${redis_user}
-REDIS_PASS=${redis_pass}
+REDIS_PASSWORD=${redis_pass}
 
 # MongoDB Configuration
 MONGO_URI=${mongo_uri}
+MONGO_INITDB_ROOT_USERNAME=${db_username}
+MONGO_INITDB_ROOT_PASSWORD=${db_password}
 
 # Application Configuration
 NODE_ENV=production
-PORT=8080
 
 # RabbitMQ Configuration
-RABBITMQ_DEFAULT_USER=guest
-RABBITMQ_DEFAULT_PASS=guest
-RABBITMQ_HOST=rabbitmq
-RABBITMQ_PORT=5672
+RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
 
 # Service URLs
-ORDER_SERVICE_URL=http://order-service:8080
-SUBTOTAL_SERVICE_URL=http://subtotal-service:8080
-DISCOUNT_SERVICE_URL=http://discount-service:8080
-TOTAL_SERVICE_URL=http://total-service:8080
-NOTIFICATION_SERVICE_URL=http://notification-service:8080
+ORDER_SERVICE_URL=http://order-service:3000
+TOTAL_SERVICE_URL=http://total-service:3001
+SUBTOTAL_SERVICE_URL=http://subtotal-service:3002
+ORDER_HISTORY_SERVICE_URL=http://order-history-service:3003
+NOTIFICATION_SERVICE_URL=http://notification-service:3004
 EOL
 
-# Create docker-compose.yml
+# Crear archivo docker-compose.yml
 cat > docker-compose.yml << 'EOL'
 version: '3.8'
 

@@ -119,6 +119,59 @@ resource "aws_security_group" "ec2_sg" {
     security_groups = [aws_security_group.alb_sg.id]
   }
 
+  # Allow traffic between microservices (3000-3004)
+  ingress {
+    from_port   = 3000
+    to_port     = 3004
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow traffic between microservices"
+  }
+
+  # Allow MongoDB access (27017)
+  ingress {
+    from_port   = 27017
+    to_port     = 27017
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow MongoDB access"
+  }
+
+  # Allow PostgreSQL access (5432)
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow PostgreSQL access"
+  }
+
+  # Allow Redis access (6379)
+  ingress {
+    from_port   = 6379
+    to_port     = 6379
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow Redis access"
+  }
+
+  # Allow RabbitMQ access (5672, 15672)
+  ingress {
+    from_port   = 5672
+    to_port     = 5672
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow RabbitMQ AMQP access"
+  }
+
+  ingress {
+    from_port   = 15672
+    to_port     = 15672
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "Allow RabbitMQ management UI access"
+  }
+
   # Allow RabbitMQ ports
   ingress {
     from_port   = 5672
@@ -280,13 +333,35 @@ resource "aws_autoscaling_group" "app_asg" {
   }
 }
 
-# Database instance (example: MongoDB)
+# Crear IP elástica para MongoDB
+resource "aws_eip" "mongodb_eip" {
+  domain = "vpc"
+  tags = {
+    Name = "mongodb-eip"
+  }
+}
+
+# Asociar la IP elástica a la instancia MongoDB
+resource "aws_eip_association" "mongodb_eip_assoc" {
+  instance_id   = aws_instance.mongodb.id
+  allocation_id = aws_eip.mongodb_eip.id
+}
+
+# Database instance (MongoDB)
 resource "aws_instance" "mongodb" {
   ami                    = "ami-08a6efd148b1f7504"  # Amazon Linux 2 AMI
   instance_type          = "t3.medium"
   subnet_id              = aws_subnet.public_subnets[0].id
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   key_name               = aws_key_pair.deployer.key_name
+  associate_public_ip_address = true
+  
+  tags = {
+    Name = "mongodb-instance"
+  }
+  
+  # Dependencia para asegurar que la IP elástica se cree primero
+  depends_on = [aws_eip.mongodb_eip]
   
   user_data = <<-EOF
               #!/bin/bash
